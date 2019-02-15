@@ -8,6 +8,8 @@ main() {
 
   if [ $1 = '-c' ]; then
     confirm 'Do you really want to clear GTAGS files?' && rm $(git rev-parse --show-cdup)(GPATH|GTAGS|GRTAGS)
+  elif [ $1 = '-g' ]; then
+    detect::grep $@
   elif [ -d $1 ]; then
     detect::search-file $@
   elif [ -f $1 ]; then
@@ -78,6 +80,26 @@ detect::detect() {
         $HIGHLIGHT \${4} |
         sed -E '{6}'\"s/.*/\$line/\"" |
       awk '{ print $2 }' | sort | uniq)
+
+    [ -z $files ] && exit 0
+    echo $files | xargs nvim -p
+  done
+}
+
+detect::grep() {
+  content=$2
+
+  list=$(global -gx $content | awk "{ print \$3 \" - \" \$2 }" | sed '/^$/d')
+
+  [ -z $list ] && error "detect: nothing is detected."
+
+  while true; do
+    files=$(echo $list | fzf -m --ansi --prompt="$content> " \
+      --preview="set {}; \
+        line=\$(cont=$content; $HIGHLIGHT \${1} | sed -n \${3}p | grep --color=always \${cont/\?/\\\\?}); \
+        $HIGHLIGHT \${1} |
+        sed -E '{3}'\"s/.*/\$line/\"" |
+      awk '{ print $1 }' | sort | uniq)
 
     [ -z $files ] && exit 0
     echo $files | xargs nvim -p
