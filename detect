@@ -34,9 +34,11 @@ detect::search-file() {
 
   [ -z $list ] && error "detect: there is no file in $1."
 
-  echo $list | fzf -m --ansi --prompt="$1> " \
-    --bind "ctrl-m:execute: nvim {}" \
-    --preview="$HIGHLIGHT {}"
+  file=$(echo $list | fzf --ansi --prompt="$1> " --preview="$HIGHLIGHT {}" | awk '{ print $1 }')
+
+  [ -z $file ] && error "detect: nothing is detected."
+
+  detect::search-def "$file"
 }
 
 detect::search-def() {
@@ -46,12 +48,15 @@ detect::search-def() {
 
   defs=$(echo $list | fzf -m --ansi --prompt="$content> " \
     --preview="set {}; \
-      line=\$(cont=$content; $HIGHLIGHT \${2} | sed -n \${4}p | grep --color=always \${cont/\?/\\\\?}); \
-      $HIGHLIGHT \${2} |
-      sed -E '{4}'\"s/.*/\$line/\"" |
-    awk '{ print $2 }' | sort | uniq)
+      line=\$(cont=\${1}; $HIGHLIGHT $1 | sed -n \${3}p | grep --color=always \${cont/\?/\\\\?}); \
+      $HIGHLIGHT $1 |
+      sed -E '{3}'\"s/.*/\$line/\"" |
+    awk '{ print $1 }' | sort | uniq |
+    tr '\n' '|' | sed -e 's/|$//')
 
-  detect::detect $defs
+  [ -z $defs ] && error "detect: nothing is detected."
+
+  detect::detect "($defs)"
 }
 
 detect::detect() {
@@ -60,8 +65,8 @@ detect::detect() {
 
   content=$1
 
-  defs=$(global -dx $content | awk "{ print \"$DEF_LABEL: \" \$3 \" - \" \$2 }")
-  refs=$(global -rx $content | awk "{ print \"$REF_LABEL: \" \$3 \" - \" \$2 }")
+  defs=$(global -dx $content | awk "{ print \"$DEF_LABEL$BOLD \" \$1 \" $DEFAULT: \" \$3 \" - \" \$2 }")
+  refs=$(global -rx $content | awk "{ print \"$REF_LABEL$BOLD \" \$1 \" $DEFAULT: \" \$3 \" - \" \$2 }")
   list=$({ echo $defs; echo $refs } | sed '/^$/d')
 
   [ -z $list ] && error "detect: nothing is detected."
@@ -69,9 +74,9 @@ detect::detect() {
   while true; do
     files=$(echo $list | fzf -m --ansi --prompt="$content> " \
       --preview="set {}; \
-        line=\$(cont=$content; $HIGHLIGHT \${2} | sed -n \${4}p | grep --color=always \${cont/\?/\\\\?}); \
-        $HIGHLIGHT \${2} |
-        sed -E '{4}'\"s/.*/\$line/\"" |
+        line=\$(cont={2}; $HIGHLIGHT \${4} | sed -n \${6}p | grep --color=always \${cont/\?/\\\\?}); \
+        $HIGHLIGHT \${4} |
+        sed -E '{6}'\"s/.*/\$line/\"" |
       awk '{ print $2 }' | sort | uniq)
 
     [ -z $files ] && exit 0
