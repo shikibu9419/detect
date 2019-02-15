@@ -1,5 +1,3 @@
-#!/bin/zsh
-
 readonly HIGHLIGHT='highlight --force -O ansi'
 readonly YELLOW='\033[33m'
 readonly BLUE='\033[34m'
@@ -133,4 +131,4 @@ detect::detect_error() {
   error "detect: nothing is detected."
 }
 
-detect::main $@
+detect::main "$@"
