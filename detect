@@ -1,9 +1,31 @@
 #!/bin/zsh
 
-source $DOTPATH/bin/_shared_functions
 readonly HIGHLIGHT='highlight --force -O ansi'
+readonly YELLOW='\033[33m'
+readonly BLUE='\033[34m'
+readonly MAGENTA='\033[35m'
+readonly BOLD='\033[1m'
+readonly DEFAULT='\033[m'
 
-main() {
+has() {
+  return $(type "$1" > /dev/null 2>&1)
+}
+
+error() {
+  echo $1 1>&2
+  exit 1
+}
+
+confirm() {
+  printf "$1 (y/N): "
+  if read -q; then
+    echo; return 0
+  else
+    echo; return 1
+  fi
+}
+
+detect::main() {
   detect::check
 
   if [ $1 = '-c' ]; then
@@ -20,8 +42,9 @@ main() {
 }
 
 detect::check() {
-  check-git-available
-  check-availables 'fzf' 'global'
+  $(git rev-parse > /dev/null 2>&1) || error 'fatal: not a git repository.'
+  has 'fzf' || error "fatal: fzf is not installed."
+  has 'global' || error "fatal: global is not installed."
 
   if ! $(global -u); then
     confirm 'Do you want to generate GTAGS files?' \
@@ -38,7 +61,7 @@ detect::search-file() {
 
   file=$(echo $list | fzf --ansi --prompt="$1> " --preview="$HIGHLIGHT {}" | awk '{ print $1 }')
 
-  [ -z $file ] && error "detect: nothing is detected."
+  [ -z $file ] && detect::detect-error
 
   detect::search-def "$file"
 }
@@ -46,7 +69,7 @@ detect::search-file() {
 detect::search-def() {
   list=$(global -fx $1 | awk '{ print $1 " - " $2 }')
 
-  [ -z $list ] && error "detect: nothing is detected."
+  [ -z $list ] && detect::detect-error
 
   defs=$(echo $list | fzf -m --ansi --prompt="$content> " \
     --preview="set {}; \
@@ -56,7 +79,7 @@ detect::search-def() {
     awk '{ print $1 }' | sort | uniq |
     tr '\n' '|' | sed -e 's/|$//')
 
-  [ -z $defs ] && error "detect: nothing is detected."
+  [ -z $defs ] && detect::detect-error
 
   detect::detect "($defs)"
 }
@@ -67,11 +90,11 @@ detect::detect() {
 
   content=$1
 
-  defs=$(global -dx $content | awk "{ print \"$DEF_LABEL$BOLD \" \$1 \" $DEFAULT: \" \$3 \" - \" \$2 }")
-  refs=$(global -rx $content | awk "{ print \"$REF_LABEL$BOLD \" \$1 \" $DEFAULT: \" \$3 \" - \" \$2 }")
+  defs=$(global -dx $content | awk "{ print \"${DEF_LABEL}${YELLOW} \" \$1 \" ${DEFAULT}: \" \$3 \" - \" \$2 }")
+  refs=$(global -rx $content | awk "{ print \"${REF_LABEL}${YELLOW} \" \$1 \" ${DEFAULT}: \" \$3 \" - \" \$2 }")
   list=$({ echo $defs; echo $refs } | sed '/^$/d')
 
-  [ -z $list ] && error "detect: nothing is detected."
+  [ -z $list ] && detect::detect-error
 
   while true; do
     files=$(echo $list | fzf -m --ansi --prompt="$content> " \
@@ -79,7 +102,7 @@ detect::detect() {
         line=\$(cont={2}; $HIGHLIGHT \${4} | sed -n \${6}p | grep --color=always \${cont/\?/\\\\?}); \
         $HIGHLIGHT \${4} |
         sed -E '{6}'\"s/.*/\$line/\"" |
-      awk '{ print $2 }' | sort | uniq)
+      awk '{ print $4 }' | sort | uniq)
 
     [ -z $files ] && exit 0
     echo $files | xargs nvim -p
@@ -91,7 +114,7 @@ detect::grep() {
 
   list=$(global -gx $content | awk "{ print \$3 \" - \" \$2 }" | sed '/^$/d')
 
-  [ -z $list ] && error "detect: nothing is detected."
+  [ -z $list ] && detect::detect-error
 
   while true; do
     files=$(echo $list | fzf -m --ansi --prompt="$content> " \
@@ -106,4 +129,8 @@ detect::grep() {
   done
 }
 
-main $@
+detect::detect-error() {
+  error "detect: nothing is detected."
+}
+
+detect::main $@
