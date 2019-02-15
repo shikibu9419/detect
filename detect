@@ -33,9 +33,9 @@ detect::main() {
   elif [ $1 = '-g' ]; then
     detect::grep $@
   elif [ -d $1 ]; then
-    detect::search-file $@
+    detect::search_file $@
   elif [ -f $1 ]; then
-    detect::search-def $@
+    detect::search_def $@
   else
     detect::detect $@
   fi
@@ -43,7 +43,7 @@ detect::main() {
 
 detect::check() {
   $(git rev-parse > /dev/null 2>&1) || error 'fatal: not a git repository.'
-  has 'fzf' || error "fatal: fzf is not installed."
+  has 'fzf'    || error "fatal: fzf is not installed."
   has 'global' || error "fatal: global is not installed."
 
   if ! $(global -u); then
@@ -54,22 +54,22 @@ detect::check() {
   fi
 }
 
-detect::search-file() {
+detect::search_file() {
   list=$(git ls-files $1)
 
   [ -z $list ] && error "detect: there is no file in $1."
 
   file=$(echo $list | fzf --ansi --prompt="$1> " --preview="$HIGHLIGHT {}" | awk '{ print $1 }')
 
-  [ -z $file ] && detect::detect-error
+  [ -z $file ] && detect::detect_error
 
-  detect::search-def "$file"
+  detect::search_def "$file"
 }
 
-detect::search-def() {
+detect::search_def() {
   list=$(global -fx $1 | awk '{ print $1 " - " $2 }')
 
-  [ -z $list ] && detect::detect-error
+  [ -z $list ] && detect::detect_error
 
   defs=$(echo $list | fzf -m --ansi --prompt="$content> " \
     --preview="set {}; \
@@ -79,7 +79,7 @@ detect::search-def() {
     awk '{ print $1 }' | sort | uniq |
     tr '\n' '|' | sed -e 's/|$//')
 
-  [ -z $defs ] && detect::detect-error
+  [ -z $defs ] && detect::detect_error
 
   detect::detect "($defs)"
 }
@@ -94,7 +94,7 @@ detect::detect() {
   refs=$(global -rx $content | awk "{ print \"${REF_LABEL}${YELLOW} \" \$1 \" ${DEFAULT}: \" \$3 \" - \" \$2 }")
   list=$({ echo $defs; echo $refs } | sed '/^$/d')
 
-  [ -z $list ] && detect::detect-error
+  [ -z $list ] && detect::detect_error
 
   while true; do
     files=$(echo $list | fzf -m --ansi --prompt="$content> " \
@@ -114,7 +114,7 @@ detect::grep() {
 
   list=$(global -gx $content | awk "{ print \$3 \" - \" \$2 }" | sed '/^$/d')
 
-  [ -z $list ] && detect::detect-error
+  [ -z $list ] && detect::detect_error
 
   while true; do
     files=$(echo $list | fzf -m --ansi --prompt="$content> " \
@@ -129,7 +129,7 @@ detect::grep() {
   done
 }
 
-detect::detect-error() {
+detect::detect_error() {
   error "detect: nothing is detected."
 }
 
