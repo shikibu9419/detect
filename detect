@@ -8,12 +8,12 @@ main() {
 
   if [ $1 = '-c' ]; then
     confirm 'Do you really want to clear GTAGS files?' && rm $(git rev-parse --show-cdup)(GPATH|GTAGS|GRTAGS)
-  elif [ -f $1 ]; then
-    detect::detect-on-file $@
   elif [ -d $1 ]; then
-    detect::detect-in-directory $@
+    detect::search-file $@
+  elif [ -f $1 ]; then
+    detect::search-def $@
   else
-    detect::detect-definition $@
+    detect::detect $@
   fi
 }
 
@@ -29,12 +29,7 @@ detect::check() {
   fi
 }
 
-detect::detect-on-file() {
-  list=$(global -fx $1 | awk '{ print $1 " - " $2 }')
-  detect::call-fzf "$list" "$1" '{1}'
-}
-
-detect::detect-in-directory() {
+detect::search-file() {
   list=$(git ls-files $1)
 
   [ -z $list ] && error "detect: there is no file in $1."
@@ -44,38 +39,44 @@ detect::detect-in-directory() {
     --preview="$HIGHLIGHT {}"
 }
 
-detect::detect-definition() {
-  label=-x
-  content=$1
-  case $content in
-    -[dgr])
-      label=$1
-      content=$2
-      ;;
-    -*)
-      error "detect: there is no such option $content."
-  esac
-
-  [[ $label =~ -[dx] ]] &&  defs=$(global -dx $content | awk '{ print $3 " - " $2 }')
-  [[ $label =~ -[rx] ]] &&  refs=$(global -rx $content | awk '{ print $3 " - " $2 }')
-  [[ $label =  -g    ]] && greps=$(global -gx $content | awk '{ print $3 " - " $2 }')
-  list=$({ echo $defs; echo $refs; echo $greps } | sed '/^$/d')
-
-  detect::call-fzf "$list" '{1}' "$content"
-}
-
-detect::call-fzf() {
-  list=$1
-  target=$2
-  content=$3
+detect::search-def() {
+  list=$(global -fx $1 | awk '{ print $1 " - " $2 }')
 
   [ -z $list ] && error "detect: nothing is detected."
 
-  echo $list | fzf -m --ansi --prompt="$content> " \
-    --bind "ctrl-l:execute: (set {}; $HIGHLIGHT $target | less +1 -NR -p $content)" \
+  defs=$(echo $list | fzf -m --ansi --prompt="$content> " \
     --preview="set {}; \
-               line=\$(cont=$content; $HIGHLIGHT $target | sed -n \${3}p | grep --color=always \${cont/\?/\\\\?}); \
-               $HIGHLIGHT $target | sed -E '{3}'\"s/.*/\$line/\""
+      line=\$(cont=$content; $HIGHLIGHT \${2} | sed -n \${4}p | grep --color=always \${cont/\?/\\\\?}); \
+      $HIGHLIGHT \${2} |
+      sed -E '{4}'\"s/.*/\$line/\"" |
+    awk '{ print $2 }' | sort | uniq)
+
+  detect::detect $defs
+}
+
+detect::detect() {
+  DEF_LABEL="${MAGENTA}${BOLD}def${DEFAULT}"
+  REF_LABEL="${BLUE}${BOLD}ref${DEFAULT}"
+
+  content=$1
+
+  defs=$(global -dx $content | awk "{ print \"$DEF_LABEL: \" \$3 \" - \" \$2 }")
+  refs=$(global -rx $content | awk "{ print \"$REF_LABEL: \" \$3 \" - \" \$2 }")
+  list=$({ echo $defs; echo $refs } | sed '/^$/d')
+
+  [ -z $list ] && error "detect: nothing is detected."
+
+  while true; do
+    files=$(echo $list | fzf -m --ansi --prompt="$content> " \
+      --preview="set {}; \
+        line=\$(cont=$content; $HIGHLIGHT \${2} | sed -n \${4}p | grep --color=always \${cont/\?/\\\\?}); \
+        $HIGHLIGHT \${2} |
+        sed -E '{4}'\"s/.*/\$line/\"" |
+      awk '{ print $2 }' | sort | uniq)
+
+    [ -z $files ] && exit 0
+    echo $files | xargs nvim -p
+  done
 }
 
 main $@
