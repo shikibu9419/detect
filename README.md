@@ -1,11 +1,13 @@
 # detect
 
+A plugin to search definition & reference on your project.
+
 This plugin dependents on fzf and GNU Global.
 
 ## Installation
 
-When using zplug, add the following line to your `.zshrc`:
+If you use `zplug`, add the following line to your `.zshrc`:
 
 ```shell
-zplug 'shikibu9419/detect', as:command, use:init.sh
+zplug 'shikibu9419/detect', use:init.sh
 ```
