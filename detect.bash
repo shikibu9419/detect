@@ -27,7 +27,7 @@ detect::main() {
   detect::check
 
   if [ $1 = '-c' ]; then
-    confirm 'Do you really want to clear GTAGS files?' && rm $(git rev-parse --show-cdup)(GPATH|GTAGS|GRTAGS)
+    confirm 'Do you really want to clear GTAGS files?' && rm $(git rev-parse --show-cdup){GPATH,GTAGS,GRTAGS}
   elif [ $1 = '-g' ]; then
     detect::grep $@
   elif [ -d $1 ]; then
@@ -55,11 +55,11 @@ detect::check() {
 detect::search_file() {
   list=$(git ls-files $1)
 
-  [ -z $list ] && error "detect: there is no file in $1."
+  [[ -z $list ]] && error "detect: there is no file in $1."
 
-  file=$(echo $list | fzf --ansi --prompt="$1> " --preview="$HIGHLIGHT {}" | awk '{ print $1 }')
+  file=$(echo "$list" | fzf --ansi --prompt="$1> " --preview="$HIGHLIGHT {}" | awk '{ print $1 }')
 
-  [ -z $file ] && detect::detect_error
+  [[ -z $file ]] && detect::detect_error
 
   detect::search_def "$file"
 }
@@ -67,9 +67,9 @@ detect::search_file() {
 detect::search_def() {
   list=$(global -fx $1 | awk '{ print $1 " - " $2 }')
 
-  [ -z $list ] && detect::detect_error
+  [[ -z $list ]] && detect::detect_error
 
-  defs=$(echo $list | fzf -m --ansi --prompt="$content> " \
+  defs=$(echo "$list" | fzf -m --ansi --prompt="$content> " \
     --preview="set {}; \
       line=\$(cont=\${1}; $HIGHLIGHT $1 | sed -n \${3}p | grep --color=always \${cont/\?/\\\\?}); \
       $HIGHLIGHT $1 |
@@ -77,7 +77,7 @@ detect::search_def() {
     awk '{ print $1 }' | sort | uniq |
     tr '\n' '|' | sed -e 's/|$//')
 
-  [ -z $defs ] && detect::detect_error
+  [[ -z $defs ]] && detect::detect_error
 
   detect::detect "($defs)"
 }
@@ -90,19 +90,19 @@ detect::detect() {
 
   defs=$(global -dx $content | awk "{ print \"${DEF_LABEL}${YELLOW} \" \$1 \" ${DEFAULT}: \" \$3 \" - \" \$2 }")
   refs=$(global -rx $content | awk "{ print \"${REF_LABEL}${YELLOW} \" \$1 \" ${DEFAULT}: \" \$3 \" - \" \$2 }")
-  list=$({ echo $defs; echo $refs } | sed '/^$/d')
+  list=$(echo -e "$defs\n$refs" | sed '/^$/d')
 
-  [ -z $list ] && detect::detect_error
+  [[ -z $list ]] && detect::detect_error
 
   while true; do
-    files=$(echo $list | fzf -m --ansi --prompt="$content> " \
+    files=$(echo "$list" | fzf -m --ansi --prompt="$content> " \
       --preview="set {}; \
         line=\$(cont={2}; $HIGHLIGHT \${4} | sed -n \${6}p | grep --color=always \${cont/\?/\\\\?}); \
         $HIGHLIGHT \${4} |
         sed -E '{6}'\"s/.*/\$line/\"" |
       awk '{ print $4 }' | sort | uniq)
 
-    [ -z $files ] && exit 0
+    [[ -z $files ]] && exit 0
     echo $files | xargs nvim -p
   done
 }
@@ -112,17 +112,17 @@ detect::grep() {
 
   list=$(global -gx $content | awk "{ print \$3 \" - \" \$2 }" | sed '/^$/d')
 
-  [ -z $list ] && detect::detect_error
+  [[ -z $list ]] && detect::detect_error
 
   while true; do
-    files=$(echo $list | fzf -m --ansi --prompt="$content> " \
+    files=$(echo "$list" | fzf -m --ansi --prompt="$content> " \
       --preview="set {}; \
         line=\$(cont=$content; $HIGHLIGHT \${1} | sed -n \${3}p | grep --color=always \${cont/\?/\\\\?}); \
         $HIGHLIGHT \${1} |
         sed -E '{3}'\"s/.*/\$line/\"" |
       awk '{ print $1 }' | sort | uniq)
 
-    [ -z $files ] && exit 0
+    [[ -z $files ]] && exit 0
     echo $files | xargs nvim -p
   done
 }
