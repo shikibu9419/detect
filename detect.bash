@@ -1,11 +1,7 @@
-readonly BLACK='\033[30m'
-readonly RED='\033[31m'
 readonly GREEN='\033[32m'
 readonly YELLOW='\033[33m'
 readonly BLUE='\033[34m'
 readonly MAGENTA='\033[35m'
-readonly CYAN='\033[36m'
-readonly WHITE='\033[37m'
 readonly BOLD='\033[1m'
 readonly DEFAULT='\033[m'
 
@@ -13,20 +9,6 @@ readonly HIGHLIGHT='highlight --force -O ansi'
 readonly BACK_LABEL="${BLUE}${BOLD}<-- back${DEFAULT}"
 readonly DEF_LABEL="${MAGENTA}${BOLD}def${DEFAULT}"
 readonly REF_LABEL="${GREEN}${BOLD}ref${DEFAULT}"
-
-has() {
-  return $(type "$1" > /dev/null 2>&1)
-}
-
-error() {
-  echo $1 1>&2
-  exit 1
-}
-
-confirm() {
-  read -n1 -p "$1 (y/N)": yn
-  [[ $yn =~ [yY] ]] && return 0 || return 1
-}
 
 detect::main() {
   detect::check
@@ -79,11 +61,12 @@ detect::search_def() {
   [[ -z $deflist ]] && detect::detect_error
 
   while true; do
-    defs=$(echo -e "$deflist\n$BACK_LABEL" | fzf -m --ansi --prompt="$content> " \
-      --preview="set {}; \
-        line=\$(cont=\${1}; $HIGHLIGHT $1 | sed -n \${3}p | grep --color=always \${cont/\?/\\\\?}); \
-        $HIGHLIGHT $1 |
-        sed -E '{3}'\"s/.*/\$line/\"" |
+    defs=$(echo -e "$deflist\n$BACK_LABEL" |
+      fzf -m --ansi --prompt="$content> " \
+        --preview="set {}; \
+          line=\$(cont=\${1}; $HIGHLIGHT $1 | sed -n \${3}p | grep --color=always \${cont/\?/\\\\?}); \
+          $HIGHLIGHT $1 |
+          sed -E '{3}'\"s/.*/\$line/\"" |
       awk '{ print $1 }' | sort | uniq |
       tr '\n' '|' | sed -e 's/|$//')
 
@@ -99,16 +82,17 @@ detect::detect() {
 
   defs=$(global -dx $content | awk "{ print \"${DEF_LABEL}${YELLOW} \" \$1 \" ${DEFAULT}: \" \$3 \" - \" \$2 }")
   refs=$(global -rx $content | awk "{ print \"${REF_LABEL}${YELLOW} \" \$1 \" ${DEFAULT}: \" \$3 \" - \" \$2 }")
-  defrefs=$(echo -e "$defs\n$refs\n$BACK_LABEL" | sed '/^$/d')
+  detected=$(echo -e "$defs\n$refs" | sed '/^$/d')
 
-  [[ -z $defrefs ]] && detect::detect_error
+  [[ -z $detected ]] && detect::detect_error
 
   while true; do
-    files=$(echo "$defrefs" | fzf -m --ansi --prompt="$content> " \
-      --preview="set {}; \
-        line=\$(cont={2}; $HIGHLIGHT \${4} | sed -n \${6}p | grep --color=always \${cont/\?/\\\\?}); \
-        $HIGHLIGHT \${4} |
-        sed -E '{6}'\"s/.*/\$line/\"" |
+    files=$(echo -e "$detected\n$BACK_LABEL" |
+      fzf -m --ansi --prompt="$content> " \
+        --preview="set {}; \
+          line=\$(cont={2}; $HIGHLIGHT \${4} | sed -n \${6}p | grep --color=always \${cont/\?/\\\\?}); \
+          $HIGHLIGHT \${4} |
+          sed -E '{6}'\"s/.*/\$line/\"" |
       awk '{ if($4 == "") print $1; else print $4 }' | sort | uniq)
 
     [[ -z $files ]] && exit 0
@@ -121,12 +105,12 @@ detect::detect() {
 detect::grep() {
   content=$2
 
-  greps=$(global -gx $content | awk "{ print \$3 \" - \" \$2 }" | sed '/^$/d')
+  grepped=$(global -gx $content | awk "{ print \$3 \" - \" \$2 }" | sed '/^$/d')
 
-  [[ -z $greps ]] && detect::detect_error
+  [[ -z $grepped ]] && detect::detect_error
 
   while true; do
-    files=$(echo "$greps" | fzf -m --ansi --prompt="$content> " \
+    files=$(echo "$grepped" | fzf -m --ansi --prompt="$content> " \
       --preview="set {}; \
         line=\$(cont=$content; $HIGHLIGHT \${1} | sed -n \${3}p | grep --color=always \${cont/\?/\\\\?}); \
         $HIGHLIGHT \${1} |
@@ -140,6 +124,20 @@ detect::grep() {
 
 detect::detect_error() {
   error "detect: nothing is detected."
+}
+
+has() {
+  return $(type "$1" > /dev/null 2>&1)
+}
+
+error() {
+  echo $1 1>&2
+  exit 1
+}
+
+confirm() {
+  read -n1 -p "$1 (y/N):" yn
+  [[ $yn =~ [yY] ]] && return 0 || return 1
 }
 
 detect::main "$@"
